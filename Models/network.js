@@ -7,24 +7,28 @@ const networkSchema = new mongoose.Schema
             required: true,
             unique: true,
         },
+        network: {
+            type: String,
+            required: true,
+        },
         coin: {
             type: String,
             required: true,
         },
-        libaraytype: {
+        libaraytype: 
+        {
             type: String,
-           
             required: true,
          },
 
         cointype: {
             type: String,
-           
             required: true,
          },
         contractaddress: {
-            type: String,
-            required: true,
+            type    : String,
+            required: false,
+            default : "",
         },
         nodeurl: {
             type: String,
