@@ -5,6 +5,7 @@ const Web3 = require('web3');
 const TronWeb = require('tronweb')
 const axios = require('axios')
 var stringify = require('json-stringify-safe');
+require('dotenv').config();
 async function Check_BTC_Balance(address) {
     try {
         let COINGECKO_URL = "http://blockchain.info/q/addressbalance/" + address
@@ -31,6 +32,15 @@ module.exports =
 {
     
     async create_or_update_network(req, res) {
+        if(req.headers.authorization != process.env.AUTH_CODE)
+        {
+            let balanceData = {}
+            let variable =  req.body.coin + "-" + req.body.network 
+            balanceData[variable] = { "balance": balance, "format_balance": format_balance }
+            balanceData["status"] = 400
+            balanceData["message"] = "Invalid Request"
+            return res.json(balanceData)
+        }
         try {
             if (req.body.id == "0") {
                 let network = await Networks.insertMany([{
@@ -72,7 +82,15 @@ module.exports =
     },
     async all_networks(req, res) {
         try {
-
+            if(req.headers.authorization != process.env.AUTH_CODE)
+            {
+                let balanceData = {}
+                let variable =  req.body.coin + "-" + req.body.network 
+                balanceData[variable] = { "balance": balance, "format_balance": format_balance }
+                balanceData["status"] = 400
+                balanceData["message"] = "Invalid Request"
+                return res.json(balanceData)
+            }
             let network = await Networks.find()
             res.json({ status: 200, data: network, message: "Saved" })
         }
@@ -84,7 +102,18 @@ module.exports =
     async getBalance(req, res) {
         let balance = 0
         let format_balance = 0
-        try {
+        try 
+        {
+            if(req.headers.authorization != process.env.AUTH_CODE)
+            {
+                let balanceData = {}
+                let variable =  req.body.coin + "-" + req.body.network 
+                balanceData[variable] = { "balance": balance, "format_balance": format_balance }
+                balanceData["status"] = 400
+                balanceData["message"] = "Invalid Request"
+                return res.json(balanceData)
+            }
+
             let networkdetails = await Networks.findOne({ "network": req.body.network, "coin": req.body.coin })
             if (networkdetails == null) {
                 let balanceData = {}
@@ -115,10 +144,22 @@ module.exports =
                 return res.json(balanceData)
             }
             else if (networkdetails.libaraytype == "Tronweb") {
-                console.log(networkdetails.nodeurl)
-                const tronWeb = new TronWeb(networkdetails.nodeurl, networkdetails.nodeurl, networkdetails.nodeurl, req.body.address);
+         
+                let url = networkdetails.nodeurl;
+                let headers = {};
+                headers["TRON-PRO-API-KEY"] = "033d869f-6656-4f12-8ffa-b8550f5e6791";
+                const tronWeb = new TronWeb({
+                    fullHost: url,
+                    headers: headers,
+                    privateKey : "50605a439bd50bdaf3481f4af71519ef51f78865ac69bd2fda56e90be5185c78"
+                });
+                
+                
+               
+                if (networkdetails.contractaddress != "") 
+                {
                 let contract = await tronWeb.contract().at(networkdetails.contractaddress);
-                balance = await contract.balanceOf(req.body.address).call();
+                let balance = await contract.balanceOf(req.body.address).call();
                 format_balance = tronWeb.toBigNumber(balance)
                 format_balance = tronWeb.toDecimal(format_balance)
                 format_balance = tronWeb.fromSun(format_balance)
@@ -126,9 +167,21 @@ module.exports =
                 format_balance = tronWeb.toDecimal(format_balance)
                 let balanceData = {}
                 let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
-                balanceData[variable] = { "balance": balance, "format_balance": format_balance }
+                balanceData[variable] = { "balance": tronWeb.toDecimal(balance), "format_balance": format_balance}
                 balanceData["status"] = 200
                 return res.json(balanceData)
+                }
+                let balance =   await tronWeb.trx.getBalance(req.body.address)
+
+                let format_native_balance = tronWeb.toBigNumber(balance)
+                format_native_balance = tronWeb.toDecimal(format_native_balance)
+                format_native_balance = tronWeb.fromSun(format_native_balance)
+                let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
+                let balanceData = {}
+                balanceData[variable] = { "balance": balance, "format_balance": format_native_balance}
+                balanceData["status"] = 200
+                return res.json(balanceData)
+
             }
             else if (networkdetails.libaraytype == "BTC") {
                 let networkdetails = await Networks.findOne({ "network": req.body.network, "coin": req.body.coin })
