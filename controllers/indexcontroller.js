@@ -23,19 +23,17 @@ async function Check_BTC_Balance(address) {
         return { "status": 200, "balance": stringify_response.data, "format_balance": balance_format }
     }
     catch (error) {
-        console.log("error",error)
+        console.log("error", error)
         return { "status": 400, "balance": 0, "format_balance": 0 }
     }
 }
 
 module.exports =
 {
-    
     async create_or_update_network(req, res) {
-        if(req.headers.authorization != process.env.AUTH_CODE)
-        {
+        if (req.headers.authorization != process.env.AUTH_CODE) {
             let balanceData = {}
-            let variable =  req.body.coin + "-" + req.body.network 
+            let variable = req.body.coin + "-" + req.body.network
             balanceData[variable] = { "balance": balance, "format_balance": format_balance }
             balanceData["status"] = 400
             balanceData["message"] = "Invalid Request"
@@ -82,10 +80,9 @@ module.exports =
     },
     async all_networks(req, res) {
         try {
-            if(req.headers.authorization != process.env.AUTH_CODE)
-            {
+            if (req.headers.authorization != process.env.AUTH_CODE) {
                 let balanceData = {}
-                let variable =  req.body.coin + "-" + req.body.network 
+                let variable = req.body.coin + "-" + req.body.network
                 balanceData[variable] = { "balance": balance, "format_balance": format_balance }
                 balanceData["status"] = 400
                 balanceData["message"] = "Invalid Request"
@@ -102,104 +99,101 @@ module.exports =
     async getBalance(req, res) {
         let balance = 0
         let format_balance = 0
-        try 
-        {
-            if(req.headers.authorization != process.env.AUTH_CODE)
+      
+        let balanced_data_array = [];
+        try {
+            console.log("=========getBalance==========", req.body)
+            let parameters = req.body
+            if (req.headers.authorization != process.env.AUTH_CODE) 
             {
-                let balanceData = {}
-                let variable =  req.body.coin + "-" + req.body.network 
-                balanceData[variable] = { "balance": balance, "format_balance": format_balance }
-                balanceData["status"] = 400
-                balanceData["message"] = "Invalid Request"
-                return res.json(balanceData)
+                return res.json({ "status": 400, "data": balanced_data_array, "message": "Invalid Request" })
             }
-
-            let networkdetails = await Networks.findOne({ "network": req.body.network, "coin": req.body.coin })
-            if (networkdetails == null) {
+            
+            Promise.all(parameters.map(async function (arrayItem) {
                 let balanceData = {}
-                balanceData["status"] = 400
-                balanceData["message"] = "Does not support this network : " + req.body.network
-                return res.json(balanceData)
-            }
+                console.log("=========arrayItem==========", arrayItem)
+                let networkdetails = await Networks.findOne({ "network": arrayItem.network, "coin": arrayItem.coin })
 
-            if (networkdetails.libaraytype == "Web3") {
-                const WEB3 = new Web3(new Web3.providers.HttpProvider(networkdetails.nodeurl))
-                if (networkdetails.contractaddress != "") {
-                    const contract = new WEB3.eth.Contract(Constant.USDT_ABI, networkdetails.contractaddress);
-                    balance = await contract.methods.balanceOf(req.body.address.toLowerCase()).call();
-                    let decimals = await contract.methods.decimals().call();
-                    format_balance = balance / (1 * 10 ** decimals)
-                    let balanceData = {}
+                if (networkdetails == null) 
+                {
+                 
+                    let variable = arrayItem.network + "-" + arrayItem.coin
+                    balanceData[variable]  = { "balance": balance, "format_balance": format_balance }
+                    balanceData["status"]  = 400
+                    balanceData["message"] = "Does not support this network : " + arrayItem.network
+                    return balanceData
+                }
+                if (networkdetails.libaraytype == "Web3") {
+                    const WEB3 = new Web3(new Web3.providers.HttpProvider(networkdetails.nodeurl))
+                    if (networkdetails.contractaddress != "") 
+                    {
+                        const contract = new WEB3.eth.Contract(Constant.USDT_ABI, networkdetails.contractaddress);
+                        balance = await contract.methods.balanceOf(arrayItem.address.toLowerCase()).call();
+                        let decimals = await contract.methods.decimals().call();
+                        format_balance = balance / (1 * 10 ** decimals)
+                        let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
+                        balanceData[variable] = { "balance": balance, "format_balance": format_balance }
+                        balanceData["status"] = 200
+                        return balanceData
+                    }
+                    else 
+                    {
+                    balance = await WEB3.eth.getBalance(arrayItem.address.toLowerCase())
+                    format_balance = await Web3.utils.fromWei(balance.toString(), 'ether')
                     let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
                     balanceData[variable] = { "balance": balance, "format_balance": format_balance }
                     balanceData["status"] = 200
-                    return res.json(balanceData)
+                    return balanceData
+                    }
                 }
-                balance = await WEB3.eth.getBalance(req.body.address.toLowerCase())
-                format_balance = await Web3.utils.fromWei(balance.toString(), 'ether')
-                let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
-                let balanceData = {}
-                balanceData[variable] = { "balance": balance, "format_balance": format_balance }
-                balanceData["status"] = 200
-                return res.json(balanceData)
-            }
-            else if (networkdetails.libaraytype == "Tronweb") {
-         
-                let url = networkdetails.nodeurl;
-                let headers = {};
-                headers["TRON-PRO-API-KEY"] = "033d869f-6656-4f12-8ffa-b8550f5e6791";
-                const tronWeb = new TronWeb({
-                    fullHost: url,
-                    headers: headers,
-                    privateKey : "50605a439bd50bdaf3481f4af71519ef51f78865ac69bd2fda56e90be5185c78"
-                });
-                
-                
-               
-                if (networkdetails.contractaddress != "") 
-                {
-                let contract = await tronWeb.contract().at(networkdetails.contractaddress);
-                let balance = await contract.balanceOf(req.body.address).call();
-                format_balance = tronWeb.toBigNumber(balance)
-                format_balance = tronWeb.toDecimal(format_balance)
-                format_balance = tronWeb.fromSun(format_balance)
-                format_balance = tronWeb.toBigNumber(format_balance)
-                format_balance = tronWeb.toDecimal(format_balance)
-                let balanceData = {}
-                let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
-                balanceData[variable] = { "balance": tronWeb.toDecimal(balance), "format_balance": format_balance}
-                balanceData["status"] = 200
-                return res.json(balanceData)
+                else if (networkdetails.libaraytype == "Tronweb") {
+                    let url = networkdetails.nodeurl;
+                    let headers = {};
+                    headers["TRON-PRO-API-KEY"] = "033d869f-6656-4f12-8ffa-b8550f5e6791";
+                    const tronWeb = new TronWeb({ fullHost: url, headers: headers, privateKey: "50605a439bd50bdaf3481f4af71519ef51f78865ac69bd2fda56e90be5185c78"});
+                    if (networkdetails.contractaddress != "") 
+                    {
+                        let contract = await tronWeb.contract().at(networkdetails.contractaddress);
+                        let balance = await contract.balanceOf(arrayItem.address).call();
+                        format_balance = tronWeb.toBigNumber(balance)
+                        format_balance = tronWeb.toDecimal(format_balance)
+                        format_balance = tronWeb.fromSun(format_balance)
+                        format_balance = tronWeb.toBigNumber(format_balance)
+                        format_balance = tronWeb.toDecimal(format_balance)
+                        let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
+                        balanceData[variable] = { "balance": tronWeb.toDecimal(balance), "format_balance": format_balance }
+                        balanceData["status"] = 200
+                        return balanceData
+                   
+                    }
+                    else 
+                    {
+                    let balance = await tronWeb.trx.getBalance(arrayItem.address)
+                    let format_native_balance = tronWeb.toBigNumber(balance)
+                    format_native_balance = tronWeb.toDecimal(format_native_balance)
+                    format_native_balance = tronWeb.fromSun(format_native_balance)
+                    let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
+                    balanceData[variable] = { "balance": balance, "format_balance": format_native_balance }
+                    balanceData["status"] = 200
+                    return balanceData
+                  }
                 }
-                let balance =   await tronWeb.trx.getBalance(req.body.address)
-
-                let format_native_balance = tronWeb.toBigNumber(balance)
-                format_native_balance = tronWeb.toDecimal(format_native_balance)
-                format_native_balance = tronWeb.fromSun(format_native_balance)
-                let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
-                let balanceData = {}
-                balanceData[variable] = { "balance": balance, "format_balance": format_native_balance}
-                balanceData["status"] = 200
-                return res.json(balanceData)
-
-            }
-            else if (networkdetails.libaraytype == "BTC") {
-                let networkdetails = await Networks.findOne({ "network": req.body.network, "coin": req.body.coin })
-                let data = await Check_BTC_Balance(req.body.address)
-                let balanceData = {}
-                let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
-                balanceData[variable] = data
-                balanceData["status"] = 200
-                return res.json(balanceData)
-            }
+                else if (networkdetails.libaraytype == "BTC") 
+                {        
+                    let data = await Check_BTC_Balance(arrayItem.address)
+                    let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
+                    balanceData[variable] = { "balance": data.balance, "format_balance": data.format_balance } 
+                    balanceData["status"] = 200
+                    return balanceData
+                }
+            })).then(coinMarkets => {  
+                balanced_data_array.push(coinMarkets) 
+                res.json({ "status": 200, "data": balanced_data_array[0], "message": "Data Updated" })
+            })
         }
         catch (error) {
-            console.log("error", error)
-            let balanceData = {}
-            balanceData["variable"] = { "balance": balance, "format_balance": format_balance }
-            balanceData["status"] = 400
-            return res.json(balanceData)
-
+            console.log("==============error==============", error)
+            return res.json({ "status": 400, "data": [], "message": "Invalid Request" })
         }
     }
 
