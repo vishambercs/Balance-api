@@ -112,11 +112,11 @@ module.exports =
             Promise.all(parameters.map(async function (arrayItem) {
                 let balanceData = {}
                 console.log("=========arrayItem==========", arrayItem)
-                let networkdetails = await Networks.findOne({ "network": arrayItem.network, "coin": arrayItem.coin })
+                
+                let networkdetails = await Networks.findOne({ "network": {'$regex': `^${arrayItem.network}$`, $options: '?-i'}  , "coin": {'$regex': `^${arrayItem.coin}$`, $options: '?-i'} })
 
                 if (networkdetails == null) 
                 {
-                 
                     let variable = arrayItem.network + "-" + arrayItem.coin
                     balanceData[variable]  = { "balance": balance, "format_balance": format_balance }
                     balanceData["status"]  = 400
@@ -131,7 +131,7 @@ module.exports =
                         balance = await contract.methods.balanceOf(arrayItem.address.toLowerCase()).call();
                         let decimals = await contract.methods.decimals().call();
                         format_balance = balance / (1 * 10 ** decimals)
-                        let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
+                        let variable = arrayItem.coin + "-" + arrayItem.network + "-" + networkdetails.id
                         balanceData[variable] = { "balance": balance, "format_balance": format_balance }
                         balanceData["status"] = 200
                         return balanceData
@@ -140,7 +140,7 @@ module.exports =
                     {
                     balance = await WEB3.eth.getBalance(arrayItem.address.toLowerCase())
                     format_balance = await Web3.utils.fromWei(balance.toString(), 'ether')
-                    let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
+                    let variable = arrayItem.coin + "-" + arrayItem.network + "-" + networkdetails.id
                     balanceData[variable] = { "balance": balance, "format_balance": format_balance }
                     balanceData["status"] = 200
                     return balanceData
@@ -160,7 +160,7 @@ module.exports =
                         format_balance = tronWeb.fromSun(format_balance)
                         format_balance = tronWeb.toBigNumber(format_balance)
                         format_balance = tronWeb.toDecimal(format_balance)
-                        let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
+                        let variable = arrayItem.coin + "-" + arrayItem.network + "-" + networkdetails.id
                         balanceData[variable] = { "balance": tronWeb.toDecimal(balance), "format_balance": format_balance }
                         balanceData["status"] = 200
                         return balanceData
@@ -172,7 +172,7 @@ module.exports =
                     let format_native_balance = tronWeb.toBigNumber(balance)
                     format_native_balance = tronWeb.toDecimal(format_native_balance)
                     format_native_balance = tronWeb.fromSun(format_native_balance)
-                    let variable = networkdetails.coin + "-" + networkdetails.network + "-" + networkdetails.id
+                    let variable = arrayItem.coin + "-" + arrayItem.network + "-" + networkdetails.id
                     balanceData[variable] = { "balance": balance, "format_balance": format_native_balance }
                     balanceData["status"] = 200
                     return balanceData
